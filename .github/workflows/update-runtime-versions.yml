@@ -45,7 +45,7 @@ jobs:
       runtime_filter: ${{ inputs.runtime_filter }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
-      gh_token: ${{ secrets.GITHUB_ACTION_SECRET }}
+      gh_token: ${{ secrets.RHOAI_ACTION_SECRET }}
 
   update-odh-runtime-versions:
     if: ${{ inputs.update_odh_controller }}
@@ -55,7 +55,7 @@ jobs:
       runtime_filter: ${{ inputs.runtime_filter }}
       dry_run: ${{ inputs.dry_run }}
     secrets:
-      gh_token: ${{ secrets.GITHUB_ACTION_SECRET }}
+      gh_token: ${{ secrets.RHOAI_ACTION_SECRET }}
 
   summarize-results:
     runs-on: ubuntu-latest
