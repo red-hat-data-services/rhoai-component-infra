@@ -1,0 +1,123 @@
+name: Update Runtime Versions (Orchestrator)
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: 'Target branch to create PRs against'
+        required: true
+        default: 'main'
+        type: string
+      runtime_filter:
+        description: 'Filter specific runtime (optional, select "all" for all runtimes)'
+        required: false
+        type: choice
+        default: 'all'
+        options:
+          - 'all'
+          - 'vllm'
+          - 'vllm-rocm' 
+          - 'vllm-cpu'
+          - 'vllm-gaudi'
+          - 'ovms'
+      dry_run:
+        description: 'Dry run - show changes without creating PRs'
+        required: false
+        default: false
+        type: boolean
+      update_vllm_repos:
+        description: 'Update VLLM repositories (Dockerfiles)'
+        required: false
+        default: true
+        type: boolean
+      update_odh_controller:
+        description: 'Update ODH Model Controller (YAML templates)'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  update-vllm-repositories:
+    if: ${{ inputs.update_vllm_repos && (inputs.runtime_filter == 'all' || contains('vllm,vllm-rocm,vllm-cpu,vllm-gaudi', inputs.runtime_filter)) }}
+    uses: ./.github/workflows/update-vllm-repositories.yml
+    with:
+      target_branch: ${{ inputs.target_branch }}
+      runtime_filter: ${{ inputs.runtime_filter }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets:
+      gh_token: ${{ secrets.GITHUB_ACTION_SECRET }}
+
+  update-odh-runtime-versions:
+    if: ${{ inputs.update_odh_controller }}
+    uses: ./.github/workflows/update-odh-runtime-versions.yml
+    with:
+      target_branch: ${{ inputs.target_branch }}
+      runtime_filter: ${{ inputs.runtime_filter }}
+      dry_run: ${{ inputs.dry_run }}
+    secrets:
+      gh_token: ${{ secrets.GITHUB_ACTION_SECRET }}
+
+  summarize-results:
+    runs-on: ubuntu-latest
+    needs: [update-vllm-repositories, update-odh-runtime-versions]
+    if: always()
+    
+    steps:
+    - name: Generate Combined Summary
+      run: |
+        echo "# 🚀 Runtime Version Update Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Target Branch:** ${{ inputs.target_branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Runtime Filter:** ${{ inputs.runtime_filter }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Dry Run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # VLLM Repositories Results
+        if [ "${{ needs.update-vllm-repositories.result }}" != "skipped" ]; then
+          echo "## 📦 VLLM Repositories" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.update-vllm-repositories.result }}" == "success" ]; then
+            echo "✅ **Status:** Completed successfully" >> $GITHUB_STEP_SUMMARY
+            if [ -n "${{ needs.update-vllm-repositories.outputs.summary || '' }}" ]; then
+              echo "${{ needs.update-vllm-repositories.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## 📦 VLLM Repositories" >> $GITHUB_STEP_SUMMARY
+          echo "⏭️ **Status:** Skipped (not applicable for selected runtime filter)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # ODH Model Controller Results
+        if [ "${{ needs.update-odh-runtime-versions.result }}" != "skipped" ]; then
+          echo "## 🎛️ ODH Model Controller" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ needs.update-odh-runtime-versions.result }}" == "success" ]; then
+            echo "✅ **Status:** Completed successfully" >> $GITHUB_STEP_SUMMARY
+            if [ -n "${{ needs.update-odh-runtime-versions.outputs.summary || '' }}" ]; then
+              echo "${{ needs.update-odh-runtime-versions.outputs.summary }}" >> $GITHUB_STEP_SUMMARY
+            fi
+            if [ -n "${{ needs.update-odh-runtime-versions.outputs.pr_url || '' }}" ]; then
+              echo "🔗 **PR Created:** ${{ needs.update-odh-runtime-versions.outputs.pr_url }}" >> $GITHUB_STEP_SUMMARY
+            fi
+          else
+            echo "❌ **Status:** Failed" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## 🎛️ ODH Model Controller" >> $GITHUB_STEP_SUMMARY
+          echo "⏭️ **Status:** Skipped" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Overall Status
+        vllm_status="${{ needs.update-vllm-repositories.result }}"
+        odh_status="${{ needs.update-odh-runtime-versions.result }}"
+        
+        echo "## 📋 Overall Status" >> $GITHUB_STEP_SUMMARY
+        if ([[ "$vllm_status" == "success" || "$vllm_status" == "skipped" ]]) && ([[ "$odh_status" == "success" || "$odh_status" == "skipped" ]]); then
+          echo "✅ **All workflows completed successfully**" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ **Some workflows failed - check individual job logs**" >> $GITHUB_STEP_SUMMARY
+        fi

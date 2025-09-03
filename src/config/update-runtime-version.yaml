@@ -1,0 +1,11 @@
+rhoai-runtime-versions:
+  - runtime: vllm
+    version: v0.10.0.2
+  - runtime: vllm-rocm
+    version: v0.10.0.2
+  - runtime: vllm-gaudi
+    version: v0.8.5
+  - runtime: vllm-cpu
+    version: v0.10.0.2
+  - runtime: ovms
+    version: v2025.2.1
