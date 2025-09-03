@@ -45,7 +45,7 @@ on:
         required: true
 
 env:
-  GITHUB_TOKEN: ${{ secrets.gh_token }}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_ACTION_SECRET || secrets.gh_token }}
 
 jobs:
   update-vllm-repositories:
